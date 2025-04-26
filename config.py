@@ -1,5 +1,5 @@
-import logging
 import os
+import logging as logger
 from dotenv import load_dotenv
 
 # .env dosyasından ortam değişkenlerini yükle
