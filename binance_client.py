@@ -1,37 +1,45 @@
 import pandas as pd
 import numpy as np
 import logging
+import os
 from binance.client import Client
 from datetime import datetime, timedelta
-import config
-import os
 from telegram_sender import send_error_message
 
 # Loglama ayarları
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('binance_client')
 
-# Binance istemcisi oluşturulması
+# Doğrudan ortam değişkenlerinden oku
+BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY", "")
+BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET", "")
+
+# Kontrol et ve logla
+logger.info(f"BINANCE_API_KEY uzunluğu: {len(BINANCE_API_KEY)}")
+logger.info(f"BINANCE_API_SECRET uzunluğu: {len(BINANCE_API_SECRET)}")
+
+# Global client değişkeni
+client = None
+
+# Binance istemcisi oluştur
 try:
-    # API anahtarlarını doğrudan çekelim
-    api_key = os.environ.get("BINANCE_API_KEY", "")
-    api_secret = os.environ.get("BINANCE_API_SECRET", "")
-    
-    if not api_key or not api_secret:
-        error_msg = f"Binance API anahtarları eksik veya boş! KEY={bool(api_key)}, SECRET={bool(api_secret)}"
+    if not BINANCE_API_KEY or not BINANCE_API_SECRET:
+        error_msg = "Binance API anahtarları boş!"
         logger.error(error_msg)
-        client = None
+        try:
+            send_error_message(error_msg, "Binance API", "API anahtarları eksik veya boş")
+        except:
+            pass
     else:
-        logger.info(f"API anahtarlarıyla Binance istemcisi oluşturuluyor. KEY uzunluğu: {len(api_key)}")
-        client = Client(api_key, api_secret)
+        client = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
         logger.info("Binance istemcisi başarıyla oluşturuldu")
 except Exception as e:
     error_msg = f"Binance istemcisi oluşturulurken hata: {e}"
     logger.error(error_msg)
-    client = None
+    try:
+        send_error_message(error_msg, "Binance Hata", str(e))
+    except:
+        pass
 
 def fetch_klines(symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
     """
@@ -45,11 +53,20 @@ def fetch_klines(symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
     Returns:
         Pandas DataFrame içeren OHLCV verileri
     """
+    global client
+    
     try:
         if client is None:
-            logger.error("Binance client oluşturulmamış! API anahtarlarını kontrol edin.")
-            return pd.DataFrame()
-        
+            # Tekrar başlatmayı dene
+            logger.info("İstemci yok, yeniden oluşturmayı deneyeceğim")
+            try:
+                client = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
+                logger.info("Binance istemcisi yeniden oluşturuldu")
+            except Exception as e:
+                error_msg = f"İstemci yeniden oluşturulamadı: {e}"
+                logger.error(error_msg)
+                return pd.DataFrame()
+                
         logger.info(f"{symbol} için {interval} verisi çekiliyor...")
         
         # Verileri çek
@@ -81,5 +98,10 @@ def fetch_klines(symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
         return data
     
     except Exception as e:
-        logger.error(f"Veri çekerken hata: {e}")
+        error_msg = f"Veri çekerken hata: {e}"
+        logger.error(error_msg)
+        try:
+            send_error_message(error_msg, "Veri Çekme", f"{symbol} {interval}: {str(e)}")
+        except:
+            pass
         return pd.DataFrame()
