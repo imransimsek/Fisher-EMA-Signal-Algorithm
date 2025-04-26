@@ -157,6 +157,22 @@ def send_startup_notification():
         logger.error(f"Başlangıç bildirimi oluşturmada hata: {e}")
         return False
 
+def send_test_signal():
+    """
+    Test amaçlı sinyal gönderir
+    """
+    try:
+        # Basit test mesajı
+        message = "🧪 TEST SİNYALİ 🧪\n\n"
+        message += "Bu bir test mesajıdır. Eğer bu mesajı görüyorsanız, Telegram bağlantısı çalışıyor demektir."
+        
+        result = send_simple_message(message)
+        logger.info(f"Test mesajı gönderildi: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Test sinyali gönderiminde hata: {e}")
+        return False
+
 def schedule_jobs() -> None:
     """
     Zamanlayıcıları ayarlar
@@ -216,6 +232,7 @@ def schedule_jobs() -> None:
     # Zamanlayıcıyı başlat
     scheduler.start()
     logger.info("Tüm zamanlayıcılar başlatıldı")
+
 
 if __name__ == "__main__":
     logger.info("Fisher + EMA Band Telegram Bot başlatılıyor...")
