@@ -4,6 +4,8 @@ import logging
 from binance.client import Client
 from datetime import datetime, timedelta
 import config
+import os
+from telegram_sender import send_error_message
 
 # Loglama ayarları
 logging.basicConfig(
@@ -14,15 +16,21 @@ logger = logging.getLogger('binance_client')
 
 # Binance istemcisi oluşturulması
 try:
-    # API anahtarlarını kontrol et
-    if not config.BINANCE_API_KEY or not config.BINANCE_API_SECRET:
-        logger.error("Binance API anahtarları eksik veya boş!")
+    # API anahtarlarını doğrudan çekelim
+    api_key = os.environ.get("BINANCE_API_KEY", "")
+    api_secret = os.environ.get("BINANCE_API_SECRET", "")
+    
+    if not api_key or not api_secret:
+        error_msg = f"Binance API anahtarları eksik veya boş! KEY={bool(api_key)}, SECRET={bool(api_secret)}"
+        logger.error(error_msg)
         client = None
     else:
-        client = Client(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
+        logger.info(f"API anahtarlarıyla Binance istemcisi oluşturuluyor. KEY uzunluğu: {len(api_key)}")
+        client = Client(api_key, api_secret)
         logger.info("Binance istemcisi başarıyla oluşturuldu")
 except Exception as e:
-    logger.error(f"Binance istemcisi oluşturulurken hata: {e}")
+    error_msg = f"Binance istemcisi oluşturulurken hata: {e}"
+    logger.error(error_msg)
     client = None
 
 def fetch_klines(symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:

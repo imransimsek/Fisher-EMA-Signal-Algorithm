@@ -1,3 +1,4 @@
+import logging
 import os
 from dotenv import load_dotenv
 
@@ -7,6 +8,11 @@ load_dotenv()
 # Binance API ayarları
 BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY", "")
 BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET", "")
+
+# API anahtarları logla
+logger.info(f"BINANCE_API_KEY ayarlandı mı: {'Evet' if BINANCE_API_KEY else 'Hayır'}")
+logger.info(f"BINANCE_API_SECRET ayarlandı mı: {'Evet' if BINANCE_API_SECRET else 'Hayır'}")
+
 
 # Telegram ayarları
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")

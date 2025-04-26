@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 import telegram
+import os
 
 import config
 from binance_client import fetch_klines
@@ -236,6 +237,12 @@ def schedule_jobs() -> None:
 
 if __name__ == "__main__":
     logger.info("Fisher + EMA Band Telegram Bot başlatılıyor...")
+    
+    # Ortam değişkenlerini kontrol et
+    api_key = os.environ.get("BINANCE_API_KEY", "")
+    api_secret = os.environ.get("BINANCE_API_SECRET", "")
+    logger.info(f"BINANCE_API_KEY ayarlandı mı: {'Evet' if api_key else 'Hayır'}")
+    logger.info(f"BINANCE_API_SECRET ayarlandı mı: {'Evet' if api_secret else 'Hayır'}")
     
     try:
         # Telegram test mesajı gönder
