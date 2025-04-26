@@ -5,27 +5,26 @@ from dotenv import load_dotenv
 # .env dosyasından ortam değişkenlerini yükle
 load_dotenv()
 
-# Binance API ayarları
-BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY", "")
-BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET", "")
+# OKX API ayarları - artık yalnızca public API kullanıyoruz, anahtara gerek yok
+# Private API'ye ihtiyaç duyarsanız, bu değişkenleri kullanın
+OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
+OKX_API_SECRET = os.environ.get("OKX_API_SECRET", "")
+OKX_API_PASSPHRASE = os.environ.get("OKX_API_PASSPHRASE", "")
 
-# API anahtarları logla
-logger.info(f"BINANCE_API_KEY ayarlandı mı: {'Evet' if BINANCE_API_KEY else 'Hayır'}")
-logger.info(f"BINANCE_API_SECRET ayarlandı mı: {'Evet' if BINANCE_API_SECRET else 'Hayır'}")
 
 
 # Telegram ayarları
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# Semboller ve zaman dilimleri
-SYMBOLS = os.environ.get("SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,AVAXUSDT").split(",")
-INTERVALS = os.environ.get("INTERVALS", "5m,15m").split(",")
+# Semboller ve zaman dilimleri (OKX formatı)
+SYMBOLS = os.environ.get("SYMBOLS", "BTC-USDT,ETH-USDT,SOL-USDT,AVAX-USDT").split(",")
+INTERVALS = os.environ.get("INTERVALS", "5m,15m,30m,1H").split(",")
 
 # İndikatör parametreleri
-FISHER_LENGTH = int(os.environ.get("FISHER_LENGTH", "21"))
-EMA_LENGTH = int(os.environ.get("EMA_LENGTH", "89"))
-RANGE_OFFSET = float(os.environ.get("RANGE_OFFSET", "2.5"))
+FISHER_LENGTH = int(os.environ.get("FISHER_LENGTH", "10"))
+EMA_LENGTH = int(os.environ.get("EMA_LENGTH", "5"))
+RANGE_OFFSET = float(os.environ.get("RANGE_OFFSET", "1.0"))
 
 # Debug modu
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"

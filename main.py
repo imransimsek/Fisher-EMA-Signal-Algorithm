@@ -9,7 +9,7 @@ import telegram
 import os
 
 import config
-from binance_client import fetch_klines
+from okx_client import fetch_klines
 from indicators import fisher_ema_band
 from signal_detector import detect_signals
 from telegram_sender import send_signals, bot, format_signal_message, send_error_message, send_simple_message
@@ -238,11 +238,11 @@ def schedule_jobs() -> None:
 if __name__ == "__main__":
     logger.info("Fisher + EMA Band Telegram Bot başlatılıyor...")
     
-    # Ortam değişkenlerini kontrol et
-    api_key = os.environ.get("BINANCE_API_KEY", "")
-    api_secret = os.environ.get("BINANCE_API_SECRET", "")
-    logger.info(f"BINANCE_API_KEY ayarlandı mı: {'Evet' if api_key else 'Hayır'}")
-    logger.info(f"BINANCE_API_SECRET ayarlandı mı: {'Evet' if api_secret else 'Hayır'}")
+    # Ortam değişkenlerini kontrol et (Binance yerine OKX)
+    api_key = os.environ.get("OKX_API_KEY", "")
+    api_secret = os.environ.get("OKX_API_SECRET", "")
+    logger.info(f"OKX_API_KEY ayarlandı mı: {'Evet' if api_key else 'Hayır'}")
+    logger.info(f"OKX_API_SECRET ayarlandı mı: {'Evet' if api_secret else 'Hayır'}")
     
     try:
         # Telegram test mesajı gönder
