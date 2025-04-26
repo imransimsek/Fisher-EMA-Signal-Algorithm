@@ -14,8 +14,13 @@ logger = logging.getLogger('binance_client')
 
 # Binance istemcisi oluşturulması
 try:
-    client = Client(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
-    logger.info("Binance istemcisi başarıyla oluşturuldu")
+    # API anahtarlarını kontrol et
+    if not config.BINANCE_API_KEY or not config.BINANCE_API_SECRET:
+        logger.error("Binance API anahtarları eksik veya boş!")
+        client = None
+    else:
+        client = Client(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
+        logger.info("Binance istemcisi başarıyla oluşturuldu")
 except Exception as e:
     logger.error(f"Binance istemcisi oluşturulurken hata: {e}")
     client = None
@@ -33,6 +38,10 @@ def fetch_klines(symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
         Pandas DataFrame içeren OHLCV verileri
     """
     try:
+        if client is None:
+            logger.error("Binance client oluşturulmamış! API anahtarlarını kontrol edin.")
+            return pd.DataFrame()
+        
         logger.info(f"{symbol} için {interval} verisi çekiliyor...")
         
         # Verileri çek

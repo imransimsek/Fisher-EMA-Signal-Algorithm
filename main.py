@@ -11,7 +11,7 @@ import config
 from binance_client import fetch_klines
 from indicators import fisher_ema_band
 from signal_detector import detect_signals
-from telegram_sender import send_signals, bot, format_signal_message
+from telegram_sender import send_signals, bot, format_signal_message, send_error_message, send_simple_message
 
 # Loglama ayarları
 logging.basicConfig(
@@ -34,50 +34,70 @@ def process_symbol_interval(symbol: str, interval: str) -> None:
         # 1. Verileri çek
         df = fetch_klines(symbol, interval, limit=100)
         if df.empty:
-            logger.error(f"Veri çekilemedi: {symbol} {interval}")
+            error_msg = f"Veri çekilemedi: {symbol} {interval}"
+            logger.error(error_msg)
+            # (fetch_klines içinde zaten bildirim gönderiliyor)
             return
         
         # 2. İndikatörü hesapla
-        df_with_indicators = fisher_ema_band(
-            df, 
-            length=config.FISHER_LENGTH,
-            ema_length=config.EMA_LENGTH,
-            range_offset=config.RANGE_OFFSET
-        )
+        try:
+            df_with_indicators = fisher_ema_band(
+                df, 
+                length=config.FISHER_LENGTH,
+                ema_length=config.EMA_LENGTH,
+                range_offset=config.RANGE_OFFSET
+            )
+        except Exception as e:
+            error_msg = f"İndikatör hesaplanırken hata: {symbol} {interval} - {e}"
+            logger.error(error_msg)
+            send_error_message(error_msg, "İndikatör", str(e))
+            return
         
         # Log son değerleri
         latest = df_with_indicators.iloc[-1]
         logger.info(f"Son değerler [{symbol}-{interval}]: Fisher={latest['fisher']:.4f}, Trigger={latest['trigger']:.4f}")
         
         # 3. Sinyalleri tespit et
-        signals = detect_signals(df_with_indicators)
+        try:
+            signals = detect_signals(df_with_indicators)
+        except Exception as e:
+            error_msg = f"Sinyal tespiti sırasında hata: {symbol} {interval} - {e}"
+            logger.error(error_msg)
+            send_error_message(error_msg, "Sinyal Tespiti", str(e))
+            return
         
         # 4. Telegram'a bildir (sinyal varsa)
         if signals:
             # Önce doğrudan mesaj göndermeyi dene
             try:
                 for signal in signals:
-                    msg = format_signal_message(signal, symbol, interval)
+                    message = format_signal_message(signal, symbol, interval)
                     bot.send_message(
                         chat_id=config.TELEGRAM_CHAT_ID,
-                        text=msg,
+                        text=message,
                         parse_mode=telegram.ParseMode.MARKDOWN
                     )
                     logger.info(f"Sinyal doğrudan gönderildi: {signal['type']} {symbol} {interval}")
-                return True
             except Exception as e:
-                logger.error(f"Doğrudan gönderimde hata: {e}")
+                error_msg = f"Sinyal gönderiminde hata: {e}"
+                logger.error(error_msg)
+                send_error_message(error_msg, "Telegram", f"{symbol} {interval} için sinyal gönderilemedi")
                 
                 # Alternatif yöntem ile dene
-                result = send_signals(signals, symbol, interval)
-                logger.info(f"Sinyal alternatif yolla gönderildi: {result}")
-                return result
+                try:
+                    result = send_signals(signals, symbol, interval)
+                    logger.info(f"Sinyal alternatif yolla gönderildi: {result}")
+                except Exception as e2:
+                    error_msg = f"Alternatif sinyal gönderiminde de hata: {e2}"
+                    logger.error(error_msg)
+                    send_error_message(error_msg, "Telegram", "Kritik hata - Sinyaller iletilemiyor!")
         else:
             logger.debug(f"Sinyal bulunamadı: {symbol} {interval}")
     
     except Exception as e:
-        logger.error(f"İşlem hatası: {symbol} {interval} - {e}")
-        return False
+        error_msg = f"İşlem hatası: {symbol} {interval} - {e}"
+        logger.error(error_msg)
+        send_error_message(error_msg, "İşlem", f"Genel hata: {str(e)}")
 
 def run_for_interval(interval: str) -> None:
     """
@@ -136,9 +156,6 @@ def send_startup_notification():
     except Exception as e:
         logger.error(f"Başlangıç bildirimi oluşturmada hata: {e}")
         return False
-
-
-
 
 def schedule_jobs() -> None:
     """
@@ -203,25 +220,37 @@ def schedule_jobs() -> None:
 if __name__ == "__main__":
     logger.info("Fisher + EMA Band Telegram Bot başlatılıyor...")
     
-    # Bot başlangıç bildirimini gönder
-    send_startup_notification()
-    
-   
-    # Zamanlanmış işleri oluştur
-    schedule_jobs()
-    
-    # Programın sonlanmaması için ana thread'i canlı tut
     try:
-        logger.info("Bot çalışmaya başladı. Çıkmak için Ctrl+C'ye basın.")
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Bot kapatılıyor...")
-        # Bot kapanış mesajı gönder
-        try:
-            bot.send_message(
-                chat_id=config.TELEGRAM_CHAT_ID,
-                text="⚠️ Bot kapatıldı! Hizmet şu anda devre dışı."
-            )
-        except:
-            pass
+        # Telegram test mesajı gönder
+        logger.info("Telegram testi yapılıyor...")
+        test_result = send_test_signal()
+        
+        if test_result:
+            logger.info("Telegram bağlantısı çalışıyor! Bot başlatılıyor...")
+            
+            # Bot başlangıç bildirimini gönder
+            send_startup_notification()
+            
+            # Zamanlanmış işleri oluştur
+            schedule_jobs()
+            
+            # Programın sonlanmaması için ana thread'i canlı tut
+            try:
+                logger.info("Bot çalışmaya başladı. Çıkmak için Ctrl+C'ye basın.")
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Bot kapatılıyor...")
+                # Bot kapanış mesajı gönder
+                try:
+                    send_simple_message("⚠️ Bot kapatıldı! Hizmet şu anda devre dışı.")
+                except Exception as e:
+                    logger.error(f"Kapanış mesajı gönderilirken hata: {e}")
+        else:
+            error_msg = "Telegram bağlantısı kurulamadı! Bot başlatılamıyor."
+            logger.error(error_msg)
+            # Bu durumda mesaj gönderemeyiz çünkü Telegram zaten çalışmıyor
+    except Exception as e:
+        error_msg = f"Bot başlatılırken beklenmeyen hata: {e}"
+        logger.error(error_msg)
+        # Şu aşamada telegram bağlantısı belli değil, bu yüzden sadece logluyoruz

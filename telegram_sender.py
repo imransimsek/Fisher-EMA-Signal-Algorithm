@@ -2,6 +2,7 @@ import telegram
 import logging
 from typing import Dict, Any, List
 import config
+from datetime import datetime
 
 # Loglama ayarları
 logging.basicConfig(
@@ -164,4 +165,43 @@ def send_simple_message(text: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Basit mesaj gönderilirken hata: {e}")
+        return False
+
+def send_error_message(error_message: str, source: str = "Sistem", details: str = None) -> bool:
+    """
+    Hata mesajını Telegram'a bildirir
+    
+    Args:
+        error_message: Ana hata mesajı
+        source: Hatanın kaynağı/modülü
+        details: Hata detayları (varsa)
+        
+    Returns:
+        Gönderim başarılıysa True, değilse False
+    """
+    if not bot:
+        logger.error("Telegram botu oluşturulmamış - Hata bildirimi yapılamadı!")
+        return False
+    
+    try:
+        # Mesaj şablonu
+        message = f"⚠️ HATA BİLDİRİMİ ⚠️\n\n"
+        message += f"📋 Modül: {source}\n"
+        message += f"📌 Hata: {error_message}\n"
+        
+        if details:
+            message += f"\n🔍 Detaylar: {details}\n"
+            
+        message += f"\n⏰ Zaman: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        # Mesajı gönder
+        bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=message
+        )
+        logger.info("Hata bildirimi gönderildi")
+        return True
+    
+    except Exception as e:
+        logger.error(f"Hata bildirimi gönderilirken başka bir hata oluştu: {e}")
         return False
