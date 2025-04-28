@@ -14,7 +14,7 @@ from indicators import fisher_ema_band
 from signal_detector import detect_signals
 from telegram_sender import send_signals, bot, format_signal_message, send_error_message, send_simple_message
 
-# Loglama ayarları
+# Logging settings
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -27,20 +27,19 @@ logger = logging.getLogger('main')
 
 def process_symbol_interval(symbol: str, interval: str) -> None:
     """
-    Bir sembol ve zaman dilimi için işlem adımlarını çalıştırır
+    Executes processing steps for a symbol and time interval
     """
     try:
         logger.info(f"İşlem: {symbol} {interval}")
         
-        # 1. Verileri çek
+        # Fetch kline data
         df = fetch_klines(symbol, interval, limit=100)
         if df.empty:
-            error_msg = f"Veri çekilemedi: {symbol} {interval}"
-            logger.error(error_msg)
-            # (fetch_klines içinde zaten bildirim gönderiliyor)
+            error_msg = f"Data not fetched: {symbol} {interval}"
+            logger.error(error_msg)   
             return
         
-        # 2. İndikatörü hesapla
+        # 2. Calculate indicators
         try:
             df_with_indicators = fisher_ema_band(
                 df, 
@@ -54,11 +53,11 @@ def process_symbol_interval(symbol: str, interval: str) -> None:
             send_error_message(error_msg, "İndikatör", str(e))
             return
         
-        # Log son değerleri
+        # Log last values
         latest = df_with_indicators.iloc[-1]
-        logger.info(f"Son değerler [{symbol}-{interval}]: Fisher={latest['fisher']:.4f}, Trigger={latest['trigger']:.4f}")
+        logger.info(f"Last values [{symbol}-{interval}]: Fisher={latest['fisher']:.4f}, Trigger={latest['trigger']:.4f}")
         
-        # 3. Sinyalleri tespit et
+        # 3. Detect signals
         try:
             signals = detect_signals(df_with_indicators)
         except Exception as e:
@@ -67,9 +66,9 @@ def process_symbol_interval(symbol: str, interval: str) -> None:
             send_error_message(error_msg, "Sinyal Tespiti", str(e))
             return
         
-        # 4. Telegram'a bildir (sinyal varsa)
+        # 4. Send notification to Telegram (if signals are detected)
         if signals:
-            # Önce doğrudan mesaj göndermeyi dene
+            # First try direct message
             try:
                 for signal in signals:
                     message = format_signal_message(signal, symbol, interval)
@@ -78,68 +77,68 @@ def process_symbol_interval(symbol: str, interval: str) -> None:
                         text=message,
                         parse_mode=telegram.ParseMode.MARKDOWN
                     )
-                    logger.info(f"Sinyal doğrudan gönderildi: {signal['type']} {symbol} {interval}")
+                    logger.info(f"Signal sent directly: {signal['type']} {symbol} {interval}")
             except Exception as e:
-                error_msg = f"Sinyal gönderiminde hata: {e}"
+                error_msg = f"Error sending signal: {e}"
                 logger.error(error_msg)
-                send_error_message(error_msg, "Telegram", f"{symbol} {interval} için sinyal gönderilemedi")
+                send_error_message(error_msg, "Telegram", f"{symbol} {interval} signal not sent")
                 
-                # Alternatif yöntem ile dene
+                # Try alternative method
                 try:
                     result = send_signals(signals, symbol, interval)
-                    logger.info(f"Sinyal alternatif yolla gönderildi: {result}")
+                    logger.info(f"Signal sent alternative way: {result}")
                 except Exception as e2:
-                    error_msg = f"Alternatif sinyal gönderiminde de hata: {e2}"
+                    error_msg = f"Error sending signal: {e2}"
                     logger.error(error_msg)
-                    send_error_message(error_msg, "Telegram", "Kritik hata - Sinyaller iletilemiyor!")
+                    send_error_message(error_msg, "Telegram", "Critical error - Signals cannot be sent!")
         else:
-            logger.debug(f"Sinyal bulunamadı: {symbol} {interval}")
+            logger.debug(f"No signal found: {symbol} {interval}")
     
     except Exception as e:
-        error_msg = f"İşlem hatası: {symbol} {interval} - {e}"
+        error_msg = f"Error processing symbol {symbol} {interval}: {e}"
         logger.error(error_msg)
-        send_error_message(error_msg, "İşlem", f"Genel hata: {str(e)}")
+        send_error_message(error_msg, "Processing", f"General error: {str(e)}")
 
 def run_for_interval(interval: str) -> None:
     """
-    Belirli bir zaman dilimi için tüm sembolleri işler
+    Process all symbols for a specific interval
     """
-    logger.info(f"===== {interval} TARAMASI BAŞLADI =====")
+    logger.info(f"===== {interval} SCAN STARTED =====")
     for symbol in config.SYMBOLS:
         process_symbol_interval(symbol, interval)
-    logger.info(f"===== {interval} TARAMASI TAMAMLANDI =====")
+    logger.info(f"===== {interval} SCAN COMPLETED =====")
 
 def run_all_symbols_all_intervals() -> None:
     """
-    Tüm sembol ve zaman dilimlerini dakikalık tarama için işler
+    Process all symbols and intervals for minute-based scanning
     """
-    logger.info("===== DAKİKALIK TARAMA BAŞLADI =====")
+    logger.info("===== MINUTE-BASED SCAN STARTED =====")
     for symbol in config.SYMBOLS:
         for interval in config.INTERVALS:
             process_symbol_interval(symbol, interval)
-    logger.info("===== DAKİKALIK TARAMA TAMAMLANDI =====")
+    logger.info("===== MINUTE-BASED SCAN COMPLETED =====")
 
 def send_startup_notification():
     """
-    Bot başlatıldığında Telegram'a bildirim gönderir
+    Send notification to Telegram when bot starts
     """
     try:
-        # Mevcut zaman
+        # Current time
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # İzlenen sembol ve zaman dilimleri
+        # Monitored symbols and intervals
         symbols_str = ", ".join(config.SYMBOLS)
         intervals_str = ", ".join(config.INTERVALS)
         
-        # Mesaj oluştur
-        message = f"🤖 *Fisher + EMA Bot Başlatıldı* 🤖\n\n"
-        message += f"📅 Tarih/Saat: `{current_time}`\n\n"
-        message += f"👁️ İzlenen Semboller: `{symbols_str}`\n"
-        message += f"⏱️ Zaman Dilimleri: `{intervals_str}`\n\n"
-        message += f"📊 Fisher Uzunluk: {config.FISHER_LENGTH}\n" 
-        message += f"📈 EMA Uzunluk: {config.EMA_LENGTH}\n"
-        message += f"🔍 Bant Genişliği: {config.RANGE_OFFSET}\n\n"
-        message += "✅ Bot şu anda çalışıyor ve sinyalleri izliyor!"
+        # Create message
+        message = f"🤖 *Fisher + EMA Bot Started* 🤖\n\n"
+        message += f"📅 Date/Time: `{current_time}`\n\n"
+        message += f"👁️ Monitored Symbols: `{symbols_str}`\n"
+        message += f"⏱️ Intervals: `{intervals_str}`\n\n"
+        message += f"📊 Fisher Length: {config.FISHER_LENGTH}\n" 
+        message += f"📈 EMA Length: {config.EMA_LENGTH}\n"
+        message += f"🔍 Band Width: {config.RANGE_OFFSET}\n\n"
+        message += "✅ Bot is currently running and monitoring signals!"
         
         # Doğrudan mesaj göndermeyi dene
         try:
@@ -148,133 +147,133 @@ def send_startup_notification():
                 text=message,
                 parse_mode=telegram.ParseMode.MARKDOWN
             )
-            logger.info("Başlangıç bildirimi gönderildi")
+            logger.info("Startup notification sent")
             return True
         except Exception as e:
-            logger.error(f"Başlangıç bildirimi gönderiminde hata: {e}")
+            logger.error(f"Error sending startup notification: {e}")
             return False
         
     except Exception as e:
-        logger.error(f"Başlangıç bildirimi oluşturmada hata: {e}")
+        logger.error(f"Error creating startup notification: {e}")
         return False
 
 def send_test_signal():
     """
-    Test amaçlı sinyal gönderir
+    Send test signal for testing purposes
     """
     try:
-        # Basit test mesajı
-        message = "🧪 TEST SİNYALİ 🧪\n\n"
-        message += "Bu bir test mesajıdır. Eğer bu mesajı görüyorsanız, Telegram bağlantısı çalışıyor demektir."
+        # Simple test message
+        message = "🧪 TEST SIGNAL 🧪\n\n"
+        message += "This is a test message. If you see this message, it means the Telegram connection is working."
         
         result = send_simple_message(message)
-        logger.info(f"Test mesajı gönderildi: {result}")
+        logger.info(f"Test message sent: {result}")
         return result
     except Exception as e:
-        logger.error(f"Test sinyali gönderiminde hata: {e}")
+        logger.error(f"Error sending test signal: {e}")
         return False
 
 def schedule_jobs() -> None:
     """
-    Zamanlayıcıları ayarlar
+    Set up schedulers
     """
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Istanbul'))
     
-    # 1. Zaman dilimlerine bağlı işler (orijinal)
+    # 1. Jobs based on intervals (original)
     for interval in config.INTERVALS:
         if interval == '5m':
-            # Her 5 dakikada bir: 00:00, 00:05, 00:10, ...
+            # Every 5 minutes: 00:00, 00:05, 00:10, ...
             for minute in range(0, 60, 5):
                 scheduler.add_job(
                     lambda i=interval: run_for_interval(i),
                     CronTrigger(minute=minute, timezone=pytz.timezone('Europe/Istanbul')), 
                     id=f'job_{interval}_{minute}'
                 )
-            logger.info("5m zamanlayıcı ayarlandı")
+            logger.info("5m scheduler set up")
             
         elif interval == '15m':
-            # Her 15 dakikada bir: 00:00, 00:15, 00:30, 00:45
+            # Every 15 minutes: 00:00, 00:15, 00:30, 00:45
             for minute in [0, 15, 30, 45]:
                 scheduler.add_job(
                     lambda i=interval: run_for_interval(i),
                     CronTrigger(minute=minute, timezone=pytz.timezone('Europe/Istanbul')),
                     id=f'job_{interval}_{minute}'
                 )
-            logger.info("15m zamanlayıcı ayarlandı")
+            logger.info("15m scheduler set up")
             
         elif interval == '30m':
-            # Her 30 dakikada bir: 00:00, 00:30
+            # Every 30 minutes: 00:00, 00:30
             for minute in [0, 30]:
                 scheduler.add_job(
                     lambda i=interval: run_for_interval(i),
                     CronTrigger(minute=minute, timezone=pytz.timezone('Europe/Istanbul')),
                     id=f'job_{interval}_{minute}'
                 )
-            logger.info("30m zamanlayıcı ayarlandı")
+            logger.info("30m scheduler set up")
             
         elif interval == '1h':
-            # Her saatte bir: 00:00, 01:00, 02:00, ...
+            # Every hour: 00:00, 01:00, 02:00, ...
             scheduler.add_job(
                 lambda i=interval: run_for_interval(i),
                 CronTrigger(minute=0, timezone=pytz.timezone('Europe/Istanbul')),
                 id=f'job_{interval}'
             )
-            logger.info("1h zamanlayıcı ayarlandı")
+            logger.info("1h scheduler set up")
     
-    # 2. Dakikalık tarama (ek olarak)
+    # 2. Minute-based scanning (additional)
     scheduler.add_job(
         run_all_symbols_all_intervals,
         IntervalTrigger(minutes=1, timezone=pytz.timezone('Europe/Istanbul')),
         id='every_minute_job',
         next_run_time=datetime.now(pytz.timezone('Europe/Istanbul'))
     )
-    logger.info("Dakikalık zamanlayıcı ayarlandı")
+    logger.info("Minute-based scheduler set up")
     
-    # Zamanlayıcıyı başlat
+    # Start scheduler
     scheduler.start()
-    logger.info("Tüm zamanlayıcılar başlatıldı")
+    logger.info("All schedulers started")
 
 
 if __name__ == "__main__":
-    logger.info("Fisher + EMA Band Telegram Bot başlatılıyor...")
+    logger.info("Fisher + EMA Band Telegram Bot starting...")
     
-    # Ortam değişkenlerini kontrol et (Binance yerine OKX)
+    # Check environment variables (OKX instead of Binance)
     api_key = os.environ.get("OKX_API_KEY", "")
     api_secret = os.environ.get("OKX_API_SECRET", "")
-    logger.info(f"OKX_API_KEY ayarlandı mı: {'Evet' if api_key else 'Hayır'}")
-    logger.info(f"OKX_API_SECRET ayarlandı mı: {'Evet' if api_secret else 'Hayır'}")
+    logger.info(f"OKX_API_KEY set: {'Yes' if api_key else 'No'}")
+    logger.info(f"OKX_API_SECRET set: {'Yes' if api_secret else 'No'}")
     
     try:
-        # Telegram test mesajı gönder
-        logger.info("Telegram testi yapılıyor...")
+        # Telegram test message
+        logger.info("Telegram test started...")
         test_result = send_test_signal()
         
         if test_result:
-            logger.info("Telegram bağlantısı çalışıyor! Bot başlatılıyor...")
+            logger.info("Telegram connection is working! Bot starting...")
             
-            # Bot başlangıç bildirimini gönder
+            # Send startup notification
             send_startup_notification()
             
-            # Zamanlanmış işleri oluştur
+            # Create scheduled jobs
             schedule_jobs()
             
-            # Programın sonlanmaması için ana thread'i canlı tut
+            # Keep the main thread alive
             try:
-                logger.info("Bot çalışmaya başladı. Çıkmak için Ctrl+C'ye basın.")
+                logger.info("Bot started. Press Ctrl+C to stop.")
                 while True:
                     time.sleep(1)
             except KeyboardInterrupt:
-                logger.info("Bot kapatılıyor...")
-                # Bot kapanış mesajı gönder
+                logger.info("Bot stopping...")
+                # Send shutdown message
                 try:
-                    send_simple_message("⚠️ Bot kapatıldı! Hizmet şu anda devre dışı.")
+                    send_simple_message("⚠️ Bot stopped! Service is currently unavailable.")
                 except Exception as e:
-                    logger.error(f"Kapanış mesajı gönderilirken hata: {e}")
+                    logger.error(f"Error sending shutdown message: {e}")
         else:
-            error_msg = "Telegram bağlantısı kurulamadı! Bot başlatılamıyor."
+            error_msg = "Telegram connection failed! Bot cannot start."
             logger.error(error_msg)
-            # Bu durumda mesaj gönderemeyiz çünkü Telegram zaten çalışmıyor
+            # We cannot send a message because Telegram is not working
     except Exception as e:
-        error_msg = f"Bot başlatılırken beklenmeyen hata: {e}"
+        error_msg = f"Unexpected error starting bot: {e}"
         logger.error(error_msg)
-        # Şu aşamada telegram bağlantısı belli değil, bu yüzden sadece logluyoruz
+        # At this point, Telegram connection is not certain, so we only log

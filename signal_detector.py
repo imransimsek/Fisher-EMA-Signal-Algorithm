@@ -2,7 +2,7 @@ import pandas as pd
 import logging
 from typing import Dict, Any, List, Tuple
 
-# Loglama ayarları
+# Log settings
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -11,49 +11,49 @@ logger = logging.getLogger('signal_detector')
 
 def detect_signals(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
-    Fisher + EMA Band indikatöründen sinyal tespit eder
+    Detects signals from Fisher + EMA Band indicator
     
-    Yeni Sinyal Mantığı:
-    1. AŞIRI_ALIM: Trigger, üst bandın üstünde
-    2. AŞIRI_SATIM: Trigger, alt bandın altında
+    New Signal Logic:
+    1. AŞIRI_ALIM: Trigger, above upper band
+    2. AŞIRI_SATIM: Trigger, below lower band
     """
     signals = []
     
-    # Son veriyi al
+    # Get last data point
     if len(df) < 1:
-        logger.warning("Sinyal tespiti için en az 1 veri noktası gerekiyor")
+        logger.warning("At least 1 data point is required for signal detection")
         return signals
     
-    current = df.iloc[-1]  # En son satır
+    current = df.iloc[-1]  # Last row
     
-    # Sinyal 1: Trigger, üst bandın üzerinde (AŞIRI_ALIM)
+    # Signal 1: Trigger, above upper band (EXTREME_BUY)
     if current['trigger'] > current['upper_band']:
         signal = {
-            'type': 'AŞIRI_ALIM',
-            'strength': 'UYARI',
+            'type': 'EXTREME_BUY',
+            'strength': 'WARNING',
             'price': current['close'],
             'trigger': current['trigger'],
             'band': current['upper_band'],
             'fisher': current['fisher'],
-            'time': current.name,  # index değeri (timestamp)
-            'description': 'Trigger, üst bandın üzerine çıktı! Aşırı alım bölgesi.'
+            'time': current.name,  # index value (timestamp)
+            'description': 'Trigger, above upper band! Extreme buy zone.'
         }
         signals.append(signal)
-        logger.info(f"AŞIRI ALIM sinyali tespit edildi: Trigger={current['trigger']:.4f}, Üst Band={current['upper_band']:.4f}")
+        logger.info(f"Extreme Buy Signal Detected: Trigger={current['trigger']:.4f}, Upper Band={current['upper_band']:.4f}")
     
-    # Sinyal 2: Trigger, alt bandın altında (AŞIRI_SATIM)
+    # Signal 2: Trigger, below lower band (EXTREME_SELL)
     elif current['trigger'] < current['lower_band']:
         signal = {
-            'type': 'AŞIRI_SATIM',
-            'strength': 'UYARI',
+            'type': 'EXTREME_SELL',
+            'strength': 'WARNING',
             'price': current['close'],
             'trigger': current['trigger'],
             'band': current['lower_band'],
             'fisher': current['fisher'],
             'time': current.name,
-            'description': 'Trigger, alt bandın altına indi! Aşırı satım bölgesi.'
+            'description': 'Trigger, below lower band! Extreme sell zone.'
         }
         signals.append(signal)
-        logger.info(f"AŞIRI SATIM sinyali tespit edildi: Trigger={current['trigger']:.4f}, Alt Band={current['lower_band']:.4f}")
+        logger.info(f"Extreme Sell Signal Detected: Trigger={current['trigger']:.4f}, Lower Band={current['lower_band']:.4f}")
     
     return signals

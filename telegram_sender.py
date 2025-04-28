@@ -4,68 +4,68 @@ from typing import Dict, Any, List
 import config
 from datetime import datetime
 
-# Loglama ayarları
+# Log settings
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('telegram_sender')
 
-# Telegram Bot örneği oluştur
+# Create Telegram bot instance
 try:
     bot = telegram.Bot(token=config.TELEGRAM_BOT_TOKEN)
-    logger.info("Telegram botu başarıyla oluşturuldu")
+    logger.info("Telegram bot created successfully")
 except Exception as e:
-    logger.error(f"Telegram botu oluşturulurken hata: {e}")
+    logger.error(f"Error creating Telegram bot: {e}")
     bot = None
 
 def format_signal_message(signal: Dict[str, Any], symbol: str, interval: str) -> str:
     """
-    Sinyal bilgilerini biçimlendirilmiş mesaja dönüştürür
+    Formats signal information into a formatted message
     """
     try:
-        # Sinyal tipine göre emoji ve başlık seç
-        if signal['type'] == 'AŞIRI_ALIM':
+        # Select emoji and title based on signal type
+        if signal['type'] == 'EXTREME_BUY':
             emoji = "🔴"
-            title = "AŞIRI ALIM BÖLGESİ"
+            title = "EXTREME BUY ZONE"
             direction_emoji = "⬆️"
-        elif signal['type'] == 'AŞIRI_SATIM':
+        elif signal['type'] == 'EXTREME_SELL':
             emoji = "🟢" 
-            title = "AŞIRI SATIM BÖLGESİ"
+            title = "EXTREME SELL ZONE"
             direction_emoji = "⬇️"
-        elif signal['type'] == 'AL':
+        elif signal['type'] == 'BUY':
             emoji = "🟢"
-            title = "AL SİNYALİ"
+            title = "BUY SIGNAL"
             direction_emoji = "⬆️"
-        elif signal['type'] == 'SAT':
+        elif signal['type'] == 'SELL':
             emoji = "🔴"
-            title = "SAT SİNYALİ"
+            title = "SELL SIGNAL"
             direction_emoji = "⬇️"
         else:
             emoji = "⚠️"
             title = signal['type']
             direction_emoji = "〰️"
         
-        # Güç emojisi
+        # Strength emoji
         strength_emoji = ""
-        if signal.get('strength') == 'GÜÇLÜ':
+        if signal.get('strength') == 'STRONG':
             strength_emoji = "💪"
-        elif signal.get('strength') == 'UYARI':
+        elif signal.get('strength') == 'WARNING':
             strength_emoji = "⚠️"
         elif signal.get('strength') == 'TEST':
             emoji = "🧪"
             strength_emoji = "🔍"
         
-        # Tarih formatı
-        time_str = "Bilinmiyor"
+        # Date format
+        time_str = "Unknown"
         if signal.get('time'):
             if hasattr(signal['time'], 'strftime'):
                 time_str = signal['time'].strftime('%Y-%m-%d %H:%M')
             else:
                 time_str = str(signal['time'])
         
-        # Fiyat formatı
-        price_str = "Bilinmiyor"
+        # Price format
+        price_str = "Unknown"
         if 'price' in signal:
             price = signal['price']
             if isinstance(price, (int, float)):
@@ -73,14 +73,14 @@ def format_signal_message(signal: Dict[str, Any], symbol: str, interval: str) ->
             else:
                 price_str = str(price)
         
-        # Mesaj şablonu
+        # Message template
         message = f"{emoji} {direction_emoji} {title} {direction_emoji} {strength_emoji}\n\n"
-        message += f"Sembol: {symbol}\n"
-        message += f"Zaman Dilimi: {interval}\n"
-        message += f"Fiyat: {price_str} USDT\n"
+        message += f"Symbol: {symbol}\n"
+        message += f"Interval: {interval}\n"
+        message += f"Price: {price_str} USDT\n"
         message += f"Zaman: {time_str}\n\n"
         
-        # İndikatör değerleri
+        # Indicator values
         if 'trigger' in signal:
             trigger = signal['trigger']
             trigger_str = f"{trigger:.4f}" if isinstance(trigger, (int, float)) else str(trigger)
@@ -90,10 +90,10 @@ def format_signal_message(signal: Dict[str, Any], symbol: str, interval: str) ->
             band = signal['band']
             band_str = f"{band:.4f}" if isinstance(band, (int, float)) else str(band)
             
-            if signal['type'] == 'AŞIRI_ALIM':
-                message += f"Üst Band: {band_str}\n"
-            elif signal['type'] == 'AŞIRI_SATIM':
-                message += f"Alt Band: {band_str}\n"
+            if signal['type'] == 'EXTREME_BUY':
+                message += f"Upper Band: {band_str}\n"
+            elif signal['type'] == 'EXTREME_SELL':
+                message += f"Lower Band: {band_str}\n"
             else:
                 message += f"Band: {band_str}\n"
                 
@@ -105,29 +105,29 @@ def format_signal_message(signal: Dict[str, Any], symbol: str, interval: str) ->
         if 'description' in signal:
             message += f"\n📝 {signal['description']}"
         
-        # Potansiyel işlem önerisi
-        if signal['type'] == 'AŞIRI_ALIM':
-            message += "\n\n⚠️ Dikkat: Fiyat aşırı alım bölgesinde olabilir!"
-        elif signal['type'] == 'AŞIRI_SATIM':
-            message += "\n\n⚠️ Dikkat: Fiyat aşırı satım bölgesinde olabilir!"
+        # Potential trade suggestion
+        if signal['type'] == 'EXTREME_BUY':
+            message += "\n\n⚠️ Attention: Price may be in extreme buy zone!"
+        elif signal['type'] == 'EXTREME_SELL':
+            message += "\n\n⚠️ Attention: Price may be in extreme sell zone!"
         
         return message
     
     except Exception as e:
-        logger.error(f"Sinyal mesajı biçimlendirme hatası: {e}")
-        return f"⚠️ SINYAL: {symbol} {interval} - Detaylar gösterilemiyor"
+        logger.error(f"Signal message formatting error: {e}")
+        return f"⚠️ SIGNAL: {symbol} {interval} - Details not available"
 
 def send_signals(signals: List[Dict[str, Any]], symbol: str, interval: str) -> bool:
     """
-    Sinyalleri Telegram üzerinden gönderir
+    Sends signals via Telegram
     
     Args:
-        signals: Sinyal bilgilerini içeren liste
-        symbol: İşlem çifti sembolü
-        interval: Zaman dilimi
+        signals: List of signal information
+        symbol: Trading pair symbol
+        interval: Time interval
         
     Returns:
-        Gönderim başarılıysa True, değilse False
+        True if sending is successful, False otherwise
     """
     if not bot or not signals:
         return False
@@ -140,20 +140,20 @@ def send_signals(signals: List[Dict[str, Any]], symbol: str, interval: str) -> b
                 text=message,
                 parse_mode=telegram.ParseMode.MARKDOWN
             )
-            logger.info(f"Telegram mesajı gönderildi: {signal['type']} {symbol} {interval}")
+            logger.info(f"Telegram message sent: {signal['type']} {symbol} {interval}")
         
         return True
     
     except Exception as e:
-        logger.error(f"Telegram mesajı gönderilirken hata: {e}")
+        logger.error(f"Telegram message sending error: {e}")
         return False
 
 def send_simple_message(text: str) -> bool:
     """
-    Basit bir mesaj gönderir - Test ve bildirimler için
+    Sends a simple message - For test and notifications
     """
     if not bot:
-        logger.error("Telegram botu oluşturulmamış!")
+        logger.error("Telegram bot not created!")
         return False
     
     try:
@@ -161,47 +161,47 @@ def send_simple_message(text: str) -> bool:
             chat_id=config.TELEGRAM_CHAT_ID,
             text=text
         )
-        logger.info("Basit mesaj gönderildi")
+        logger.info("Simple message sent")
         return True
     except Exception as e:
-        logger.error(f"Basit mesaj gönderilirken hata: {e}")
+        logger.error(f"Simple message sending error: {e}")
         return False
 
 def send_error_message(error_message: str, source: str = "Sistem", details: str = None) -> bool:
     """
-    Hata mesajını Telegram'a bildirir
+    Sends error message to Telegram
     
     Args:
-        error_message: Ana hata mesajı
-        source: Hatanın kaynağı/modülü
-        details: Hata detayları (varsa)
+        error_message: Main error message
+        source: Error source/module
+        details: Error details (if applicable)
         
     Returns:
-        Gönderim başarılıysa True, değilse False
+        True if sending is successful, False otherwise
     """
     if not bot:
-        logger.error("Telegram botu oluşturulmamış - Hata bildirimi yapılamadı!")
+        logger.error("Telegram bot not created - Error notification not sent!")
         return False
     
     try:
         # Mesaj şablonu
-        message = f"⚠️ HATA BİLDİRİMİ ⚠️\n\n"
-        message += f"📋 Modül: {source}\n"
-        message += f"📌 Hata: {error_message}\n"
+        message = f"⚠️ ERROR NOTIFICATION ⚠️\n\n"
+        message += f"📋 Module: {source}\n"
+        message += f"📌 Error: {error_message}\n"
         
         if details:
-            message += f"\n🔍 Detaylar: {details}\n"
+            message += f"\n🔍 Details: {details}\n"
             
-        message += f"\n⏰ Zaman: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        message += f"\n⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
         # Mesajı gönder
         bot.send_message(
             chat_id=config.TELEGRAM_CHAT_ID,
             text=message
         )
-        logger.info("Hata bildirimi gönderildi")
+        logger.info("Error notification sent")
         return True
     
     except Exception as e:
-        logger.error(f"Hata bildirimi gönderilirken başka bir hata oluştu: {e}")
+        logger.error(f"Error notification sending error: {e}")
         return False

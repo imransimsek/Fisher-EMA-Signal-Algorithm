@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import logging
 
-# Loglama ayarları
+# Logging settings
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -11,47 +11,47 @@ logger = logging.getLogger('indicators')
 
 def fisher_ema_band(df: pd.DataFrame, length: int = 21, ema_length: int = 50, range_offset: float = 2.0) -> pd.DataFrame:
     """
-    Pine Script Fisher Transform indikatörünü Python'a uyarlar
+    Adapt Pine Script Fisher Transform indicator to Python
     
     Args:
-        df: OHLC verilerini içeren DataFrame
-        length: Fisher pencere uzunluğu
-        ema_length: Fisher'ın EMA uzunluğu
-        range_offset: Bantlar için aralık çarpanı
+        df: DataFrame containing OHLC data
+        length: Fisher window length
+        ema_length: Fisher's EMA length
+        range_offset: Range factor for bands
     
     Returns:
-        İndikatör değerlerini içeren DataFrame
+        DataFrame containing indicator values
     """
     try:
-        logger.debug(f"Fisher Transform hesaplanıyor: length={length}, ema_length={ema_length}, offset={range_offset}")
+        logger.debug(f"Calculating Fisher Transform: length={length}, ema_length={ema_length}, offset={range_offset}")
         
-        # Kayıtları kopyala
+        # Copy records
         result_df = df.copy()
         
-        # HL2 hesapla (High ve Low ortalaması)
+        # Calculate HL2 (High and Low average)
         hl2 = (df['high'] + df['low']) / 2
         
-        # Her period için en yüksek ve en düşük değerleri bul
+        # Find max and min values for each period
         max_h = hl2.rolling(window=length).max()
         min_l = hl2.rolling(window=length).min()
         
-        # nValue1 ve nFish için numpy dizileri oluştur
+        # Create numpy arrays for nValue1 and nFish
         nValue1 = np.zeros(len(df))
         nFish = np.zeros(len(df))
         
-        # İlk length kadar satır için hesaplama yapamayız (yeterli veri yok)
+        # We can't calculate for the first length rows (not enough data)
         for i in range(length, len(df)):
-            # Range 0 ise, varsayılan 0.5 değerini kullan
+            # If range is 0, use default value 0.5
             if max_h[i] == min_l[i]:
                 raw = 0.5
             else:
-                # Value1 hesapla: normalize edilmiş hl2
+                # Calculate Value1: normalized hl2
                 raw = (hl2[i] - min_l[i]) / (max_h[i] - min_l[i])
             
-            # Pine Script'teki formülü uygula
+            # Apply Pine Script formula
             v1 = 0.33 * 2 * (raw - 0.5) + 0.67 * nValue1[i-1]
             
-            # nValue2 sınırlarını kontrol et (-0.99 ile 0.99 arasında olmalı)
+            # Check nValue2 limits (-0.99 to 0.99)
             if v1 > 0.99:
                 v2 = 0.999
             elif v1 < -0.99:
@@ -59,33 +59,33 @@ def fisher_ema_band(df: pd.DataFrame, length: int = 21, ema_length: int = 50, ra
             else:
                 v2 = v1
             
-            # nValue1'i güncelle
+            # Update nValue1
             nValue1[i] = v1
             
-            # Fisher dönüşümünü uygula
+            # Apply Fisher transformation
             nFish[i] = 0.5 * np.log((1 + v2) / (1 - v2)) + 0.5 * nFish[i-1]
             
-        # Pandas serisine dönüştür
+        # Convert to pandas series
         fisher = pd.Series(nFish, index=df.index)
-        trigger = fisher.shift(1)  # Fisher 1 dönem geriye kaydırılmış hali
+        trigger = fisher.shift(1)  # Fisher 1 period shifted
         
-        # EMA hesapla
+        # Calculate EMA
         ema_fish = fisher.ewm(span=ema_length, adjust=False).mean()
         
-        # Üst ve alt bantları hesapla
+        # Calculate upper and lower bands
         upper_band = ema_fish + range_offset
         lower_band = ema_fish - range_offset
         
-        # Sonuç dataframe'i güncelle
+        # Update result dataframe
         result_df['fisher'] = fisher
         result_df['trigger'] = trigger
         result_df['ema_fish'] = ema_fish
         result_df['upper_band'] = upper_band
         result_df['lower_band'] = lower_band
         
-        logger.debug(f"Fisher Transform hesaplandı: {len(fisher)} veri noktası")
+        logger.debug(f"Fisher Transform calculated: {len(fisher)} data points")
         return result_df
     
     except Exception as e:
-        logger.error(f"Fisher Transform hesaplanırken hata: {e}")
+        logger.error(f"Error calculating Fisher Transform: {e}")
         return df

@@ -1,18 +1,18 @@
 FROM python:3.10-slim
 
-# Çalışma dizini oluştur
+# Create working directory
 WORKDIR /app
 
-# Bağımlılıkları kopyala ve yükle
+# Copy and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Uygulama kodlarını kopyala
+# Copy application code
 COPY . .
 
-# Zaman dilimini ayarla
+# Set timezone
 ENV TZ=Europe/Istanbul
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Uygulamayı çalıştır
+# Run the application
 CMD ["python", "main.py"]
